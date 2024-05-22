@@ -14,8 +14,8 @@ INSERT INTO games (theme_id, num_rounds) VALUES (?, ?)
 `
 
 type CreateGameParams struct {
-	ThemeID   int64
-	NumRounds int64
+	ThemeID   int64 `json:"theme_id"`
+	NumRounds int64 `json:"num_rounds"`
 }
 
 func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) error {
@@ -29,6 +29,42 @@ INSERT INTO players (name) VALUES (?)
 
 func (q *Queries) CreatePlayer(ctx context.Context, name string) error {
 	_, err := q.db.ExecContext(ctx, createPlayer, name)
+	return err
+}
+
+const createRoom = `-- name: CreateRoom :exec
+INSERT INTO rooms (name, max_players, game_rounds) VALUES (?, ?, ?)
+`
+
+type CreateRoomParams struct {
+	Name       string `json:"name"`
+	MaxPlayers int64  `json:"max_players"`
+	GameRounds int64  `json:"game_rounds"`
+}
+
+func (q *Queries) CreateRoom(ctx context.Context, arg CreateRoomParams) error {
+	_, err := q.db.ExecContext(ctx, createRoom, arg.Name, arg.MaxPlayers, arg.GameRounds)
+	return err
+}
+
+const createRoomWithSlug = `-- name: CreateRoomWithSlug :exec
+INSERT INTO rooms (name, slug, max_players, game_rounds) VALUES (?, ?, ?, ?)
+`
+
+type CreateRoomWithSlugParams struct {
+	Name       string `json:"name"`
+	Slug       string `json:"slug"`
+	MaxPlayers int64  `json:"max_players"`
+	GameRounds int64  `json:"game_rounds"`
+}
+
+func (q *Queries) CreateRoomWithSlug(ctx context.Context, arg CreateRoomWithSlugParams) error {
+	_, err := q.db.ExecContext(ctx, createRoomWithSlug,
+		arg.Name,
+		arg.Slug,
+		arg.MaxPlayers,
+		arg.GameRounds,
+	)
 	return err
 }
 
@@ -75,4 +111,39 @@ func (q *Queries) GetLastInsertPlayer(ctx context.Context) (Player, error) {
 	var i Player
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err
+}
+
+const getRoomPlayers = `-- name: GetRoomPlayers :many
+SELECT id, player_id, room_id
+FROM room_players
+WHERE room_id = ?
+`
+
+type GetRoomPlayersRow struct {
+	ID       int64 `json:"id"`
+	PlayerID int64 `json:"player_id"`
+	RoomID   int64 `json:"room_id"`
+}
+
+func (q *Queries) GetRoomPlayers(ctx context.Context, roomID int64) ([]GetRoomPlayersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRoomPlayers, roomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRoomPlayersRow
+	for rows.Next() {
+		var i GetRoomPlayersRow
+		if err := rows.Scan(&i.ID, &i.PlayerID, &i.RoomID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

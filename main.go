@@ -3,9 +3,12 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	db "outsmarty.sqlc.dev/app/outsmarty"
@@ -26,6 +29,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	http.HandleFunc("/rooms/create", createRoomHandler)
+	http.HandleFunc("/rooms/join", joinRoomHandler)
 
 	http.HandleFunc("/players", createPlayerHandler)
 	http.HandleFunc("/games", createGameHandler)
@@ -37,55 +42,13 @@ func main() {
 }
 
 func initializeDatabase(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS players (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS themes (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS questions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			theme_id INTEGER NOT NULL,
-			question_text TEXT NOT NULL,
-			correct_answer TEXT NOT NULL,
-			FOREIGN KEY (theme_id) REFERENCES themes(id)
-		);
-		CREATE TABLE IF NOT EXISTS answers (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			question_id INTEGER NOT NULL,
-			player_id INTEGER NOT NULL,
-			answer_text TEXT NOT NULL,
-			is_correct BOOLEAN NOT NULL DEFAULT FALSE,
-			FOREIGN KEY (question_id) REFERENCES questions(id),
-			FOREIGN KEY (player_id) REFERENCES players(id)
-		);
-		CREATE TABLE IF NOT EXISTS games (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			theme_id INTEGER NOT NULL,
-			num_rounds INTEGER NOT NULL,
-			current_round INTEGER NOT NULL DEFAULT 0,
-			FOREIGN KEY (theme_id) REFERENCES themes(id)
-		);
-		CREATE TABLE IF NOT EXISTS game_rounds (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			game_id INTEGER NOT NULL,
-			round_number INTEGER NOT NULL,
-			question_id INTEGER NOT NULL,
-			FOREIGN KEY (game_id) REFERENCES games(id),
-			FOREIGN KEY (question_id) REFERENCES questions(id)
-		);
-		CREATE TABLE IF NOT EXISTS game_players (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			game_id INTEGER NOT NULL,
-			player_id INTEGER NOT NULL,
-			points INTEGER NOT NULL DEFAULT 0,
-			FOREIGN KEY (game_id) REFERENCES games(id),
-			FOREIGN KEY (player_id) REFERENCES players(id)
-		);
-	`)
+	// open and read schema.sql
+	ddl, err := os.ReadFile("./schema.sql")
+	combinedDDL := string(ddl)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(combinedDDL)
 	return err
 }
 
@@ -198,4 +161,50 @@ func getGameStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(game)
+}
+
+func createRoomHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		body := r.Body
+		validatedBody, err := validateRoomPayload(body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		roomSlug := generateRoomSlug(validatedBody.Name)
+		roomObject := db.CreateRoomWithSlugParams{
+			Name:       validatedBody.Name,
+			MaxPlayers: validatedBody.MaxPlayers,
+			GameRounds: validatedBody.GameRounds,
+			Slug:       roomSlug,
+		}
+		err = queries.CreateRoomWithSlug(r.Context(), roomObject)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+	} else {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+
+}
+
+func validateRoomPayload(body io.ReadCloser) (db.CreateRoomParams, error) {
+	createGameParams := db.CreateRoomParams{}
+	err := json.NewDecoder(body).Decode(&createGameParams)
+	if err != nil {
+		return createGameParams, err
+	}
+	return createGameParams, nil
+
+}
+
+func generateRoomSlug(name string) string {
+	// add a random string to the end of the slug
+	slug := name + strconv.FormatInt(time.Now().UnixNano(), 10)
+	return slug
+}
+
+func joinRoomHandler(w http.ResponseWriter, r *http.Request) {
 }

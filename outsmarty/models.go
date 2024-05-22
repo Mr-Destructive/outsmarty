@@ -5,47 +5,61 @@
 package outsmarty
 
 type Answer struct {
-	ID         int64
-	QuestionID int64
-	PlayerID   int64
-	AnswerText string
-	IsCorrect  bool
+	ID         int64  `json:"id"`
+	QuestionID int64  `json:"question_id"`
+	PlayerID   int64  `json:"player_id"`
+	AnswerText string `json:"answer_text"`
+	IsCorrect  bool   `json:"is_correct"`
 }
 
 type Game struct {
-	ID           int64
-	ThemeID      int64
-	NumRounds    int64
-	CurrentRound int64
+	ID           int64 `json:"id"`
+	ThemeID      int64 `json:"theme_id"`
+	NumRounds    int64 `json:"num_rounds"`
+	CurrentRound int64 `json:"current_round"`
 }
 
 type GamePlayer struct {
-	ID       int64
-	GameID   int64
-	PlayerID int64
-	Points   int64
+	ID       int64 `json:"id"`
+	GameID   int64 `json:"game_id"`
+	PlayerID int64 `json:"player_id"`
+	Points   int64 `json:"points"`
 }
 
 type GameRound struct {
-	ID          int64
-	GameID      int64
-	RoundNumber int64
-	QuestionID  int64
+	ID          int64 `json:"id"`
+	GameID      int64 `json:"game_id"`
+	RoundNumber int64 `json:"round_number"`
+	QuestionID  int64 `json:"question_id"`
 }
 
 type Player struct {
-	ID   int64
-	Name string
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 type Question struct {
-	ID            int64
-	ThemeID       int64
-	QuestionText  string
-	CorrectAnswer string
+	ID            int64  `json:"id"`
+	ThemeID       int64  `json:"theme_id"`
+	QuestionText  string `json:"question_text"`
+	CorrectAnswer string `json:"correct_answer"`
+}
+
+type Room struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Slug       string `json:"slug"`
+	MaxPlayers int64  `json:"max_players"`
+	GameRounds int64  `json:"game_rounds"`
+}
+
+type RoomPlayer struct {
+	ID       int64 `json:"id"`
+	RoomID   int64 `json:"room_id"`
+	PlayerID int64 `json:"player_id"`
 }
 
 type Theme struct {
-	ID   int64
-	Name string
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }

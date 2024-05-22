@@ -1,15 +1,15 @@
 
-CREATE TABLE players (
+CREATE TABLE IF NOT EXISTS players (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL
 );
 
-CREATE TABLE themes (
+CREATE TABLE IF NOT EXISTS themes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL
 );
 
-CREATE TABLE questions (
+CREATE TABLE IF NOT EXISTS questions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     theme_id INTEGER NOT NULL,
     question_text TEXT NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE questions (
     FOREIGN KEY (theme_id) REFERENCES themes(id)
 );
 
-CREATE TABLE answers (
+CREATE TABLE IF NOT EXISTS answers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     question_id INTEGER NOT NULL,
     player_id INTEGER NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE answers (
     FOREIGN KEY (player_id) REFERENCES players(id)
 );
 
-CREATE TABLE game_rounds (
+CREATE TABLE IF NOT EXISTS game_rounds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id INTEGER NOT NULL,
     round_number INTEGER NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE game_rounds (
     FOREIGN KEY (question_id) REFERENCES questions(id)
 );
 
-CREATE TABLE games (
+CREATE TABLE IF NOT EXISTS games (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     theme_id INTEGER NOT NULL,
     num_rounds INTEGER NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE games (
     FOREIGN KEY (theme_id) REFERENCES themes(id)
 );
 
-CREATE TABLE game_players (
+CREATE TABLE IF NOT EXISTS game_players (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id INTEGER NOT NULL,
     player_id INTEGER NOT NULL,
@@ -52,3 +52,18 @@ CREATE TABLE game_players (
     FOREIGN KEY (player_id) REFERENCES players(id)
 );
 
+CREATE TABLE IF NOT EXISTS rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    max_players INTEGER NOT NULL DEFAULT 3,
+    game_rounds INTEGER NOT NULL DEFAULT 3
+);
+
+CREATE TABLE IF NOT EXISTS room_players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id INTEGER NOT NULL,
+    player_id INTEGER NOT NULL,
+    FOREIGN KEY (room_id) REFERENCES rooms(id),
+    FOREIGN KEY (player_id) REFERENCES players(id)
+);

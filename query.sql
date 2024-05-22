@@ -15,3 +15,14 @@ SELECT id, theme_id, num_rounds, current_round FROM games WHERE id = last_insert
 SELECT id, theme_id, num_rounds, current_round
 FROM games
 WHERE id = ?;
+
+-- name: GetRoomPlayers :many
+SELECT id, player_id, room_id
+FROM room_players
+WHERE room_id = ?;
+
+-- name: CreateRoom :exec
+INSERT INTO rooms (name, max_players, game_rounds) VALUES (?, ?, ?);
+
+-- name: CreateRoomWithSlug :exec
+INSERT INTO rooms (name, slug, max_players, game_rounds) VALUES (?, ?, ?, ?);
