@@ -1,7 +1,14 @@
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS players (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+    user_id INT REFERENCES users(id),
+    score INT DEFAULT 0,
+    game_history JSONB
 );
 
 CREATE TABLE IF NOT EXISTS themes (

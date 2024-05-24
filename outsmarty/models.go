@@ -4,6 +4,10 @@
 
 package outsmarty
 
+import (
+	"database/sql"
+)
+
 type Answer struct {
 	ID         int64  `json:"id"`
 	QuestionID int64  `json:"question_id"`
@@ -34,8 +38,10 @@ type GameRound struct {
 }
 
 type Player struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID          int64         `json:"id"`
+	UserID      sql.NullInt64 `json:"user_id"`
+	Score       sql.NullInt64 `json:"score"`
+	GameHistory interface{}   `json:"game_history"`
 }
 
 type Question struct {
@@ -62,4 +68,10 @@ type RoomPlayer struct {
 type Theme struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
+}
+
+type User struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
 }

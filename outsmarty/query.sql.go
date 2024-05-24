@@ -7,6 +7,7 @@ package outsmarty
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createGame = `-- name: CreateGame :exec
@@ -23,13 +24,23 @@ func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) error {
 	return err
 }
 
-const createPlayer = `-- name: CreatePlayer :exec
-INSERT INTO players (name) VALUES (?)
+const createPlayer = `-- name: CreatePlayer :one
+INSERT INTO players (user_id) 
+VALUES (?) 
+RETURNING id, user_id, score, game_history
 `
 
-func (q *Queries) CreatePlayer(ctx context.Context, name string) error {
-	_, err := q.db.ExecContext(ctx, createPlayer, name)
-	return err
+// Player queries
+func (q *Queries) CreatePlayer(ctx context.Context, userID sql.NullInt64) (Player, error) {
+	row := q.db.QueryRowContext(ctx, createPlayer, userID)
+	var i Player
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Score,
+		&i.GameHistory,
+	)
+	return i, err
 }
 
 const createRoom = `-- name: CreateRoom :exec
@@ -68,6 +79,25 @@ func (q *Queries) CreateRoomWithSlug(ctx context.Context, arg CreateRoomWithSlug
 	return err
 }
 
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (name, password) 
+VALUES (?, ?) 
+RETURNING id, name, password
+`
+
+type CreateUserParams struct {
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
+// User queries
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createUser, arg.Name, arg.Password)
+	var i User
+	err := row.Scan(&i.ID, &i.Name, &i.Password)
+	return i, err
+}
+
 const getGame = `-- name: GetGame :one
 SELECT id, theme_id, num_rounds, current_round
 FROM games
@@ -102,14 +132,21 @@ func (q *Queries) GetLastInsertGame(ctx context.Context) (Game, error) {
 	return i, err
 }
 
-const getLastInsertPlayer = `-- name: GetLastInsertPlayer :one
-SELECT id, name FROM players WHERE id = last_insert_rowid()
+const getPlayerByUserID = `-- name: GetPlayerByUserID :one
+SELECT id, user_id, score, game_history 
+FROM players 
+WHERE user_id = ?
 `
 
-func (q *Queries) GetLastInsertPlayer(ctx context.Context) (Player, error) {
-	row := q.db.QueryRowContext(ctx, getLastInsertPlayer)
+func (q *Queries) GetPlayerByUserID(ctx context.Context, userID sql.NullInt64) (Player, error) {
+	row := q.db.QueryRowContext(ctx, getPlayerByUserID, userID)
 	var i Player
-	err := row.Scan(&i.ID, &i.Name)
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Score,
+		&i.GameHistory,
+	)
 	return i, err
 }
 
@@ -146,4 +183,17 @@ func (q *Queries) GetRoomPlayers(ctx context.Context, roomID int64) ([]GetRoomPl
 		return nil, err
 	}
 	return items, nil
+}
+
+const getUserByName = `-- name: GetUserByName :one
+SELECT id, name, password 
+FROM users 
+WHERE name = ?
+`
+
+func (q *Queries) GetUserByName(ctx context.Context, name string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByName, name)
+	var i User
+	err := row.Scan(&i.ID, &i.Name, &i.Password)
+	return i, err
 }

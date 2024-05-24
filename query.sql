@@ -1,10 +1,3 @@
-
--- name: CreatePlayer :exec
-INSERT INTO players (name) VALUES (?);
-
--- name: GetLastInsertPlayer :one
-SELECT id, name FROM players WHERE id = last_insert_rowid();
-
 -- name: CreateGame :exec
 INSERT INTO games (theme_id, num_rounds) VALUES (?, ?);
 
@@ -26,3 +19,25 @@ INSERT INTO rooms (name, max_players, game_rounds) VALUES (?, ?, ?);
 
 -- name: CreateRoomWithSlug :exec
 INSERT INTO rooms (name, slug, max_players, game_rounds) VALUES (?, ?, ?, ?);
+
+-- User queries
+-- name: CreateUser :one
+INSERT INTO users (name, password)
+VALUES (?, ?)
+RETURNING id, name, password;
+
+-- name: GetUserByName :one
+SELECT id, name, password
+FROM users
+WHERE name = ?;
+
+-- Player queries
+-- name: CreatePlayer :one
+INSERT INTO players (user_id)
+VALUES (?)
+RETURNING id, user_id, score, game_history;
+
+-- name: GetPlayerByUserID :one
+SELECT id, user_id, score, game_history
+FROM players
+WHERE user_id = ?;

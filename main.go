@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -11,10 +12,16 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/crypto/bcrypt"
 	db "outsmarty.sqlc.dev/app/outsmarty"
 )
 
 var queries *db.Queries
+
+type PublicUser struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
 
 func main() {
 	database, err := sql.Open("sqlite3", "./outsmarty.db")
@@ -31,12 +38,17 @@ func main() {
 	}
 	http.HandleFunc("/rooms/create", createRoomHandler)
 	http.HandleFunc("/rooms/join", joinRoomHandler)
+	http.HandleFunc("/auth/register", registerHandler)
+	http.HandleFunc("/auth/login", loginHandler)
+	http.HandleFunc("/auth/logout", logoutHandler)
 
 	http.HandleFunc("/players", createPlayerHandler)
 	http.HandleFunc("/games", createGameHandler)
 	http.HandleFunc("/games/rounds", startRoundHandler)
 	http.HandleFunc("/games/answers", submitAnswerHandler)
 	http.HandleFunc("/games/status", getGameStatusHandler)
+
+	http.HandleFunc("/app", appHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -66,19 +78,6 @@ func createPlayerHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err := queries.CreatePlayer(r.Context(), req.Name)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		player, err := queries.GetLastInsertPlayer(r.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		json.NewEncoder(w).Encode(player)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -207,4 +206,113 @@ func generateRoomSlug(name string) string {
 }
 
 func joinRoomHandler(w http.ResponseWriter, r *http.Request) {
+}
+
+func appHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		http.ServeFile(w, r, "mockup/index.html")
+	}
+}
+
+func registerHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var user db.User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Error hashing password", http.StatusInternalServerError)
+		return
+	}
+	ctx := context.Background()
+	newUser, err := queries.CreateUser(ctx, db.CreateUserParams{
+		Name:     user.Name,
+		Password: string(hashedPassword),
+	})
+	if err != nil {
+		http.Error(w, "Error creating user", http.StatusInternalServerError)
+		return
+	}
+	userID := sql.NullInt64{Int64: newUser.ID, Valid: true}
+	_, err = queries.CreatePlayer(ctx, userID)
+	if err != nil {
+		http.Error(w, "Error creating player", http.StatusInternalServerError)
+		return
+	}
+
+	response := PublicUser{
+		Name: newUser.Name,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var user db.User
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	ctx := context.Background()
+	dbUser, err := queries.GetUserByName(ctx, user.Name)
+	if err != nil {
+		http.Error(w, "Invalid name or password", http.StatusUnauthorized)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password)); err != nil {
+		http.Error(w, "Invalid name or password", http.StatusUnauthorized)
+		return
+	}
+	sessionID, err := getSession(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	userID := strconv.Itoa(int(dbUser.ID))
+	if sessionID == nil {
+		cookie := &http.Cookie{
+			Path:   "/",
+			Name:   "outsmarty_uid",
+			Value:  userID,
+			MaxAge: int(24 * 60 * 60),
+		}
+		http.SetCookie(w, cookie)
+	}
+
+	response := PublicUser{
+		Name: dbUser.Name,
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	cookie := &http.Cookie{
+		Name:   "outsmarty_uid",
+		Value:  "",
+		MaxAge: -1,
+	}
+	http.SetCookie(w, cookie)
+	w.WriteHeader(http.StatusOK)
+}
+
+func getSession(r *http.Request) (*http.Cookie, error) {
+	if cookie, err := r.Cookie("outsmarty_uid"); err == nil {
+		return cookie, nil
+	}
+	return nil, nil
 }
