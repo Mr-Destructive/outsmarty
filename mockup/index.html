@@ -11,6 +11,14 @@
                 <li><a href="/create">Create Room</a></li>
                 <li><a href="/join">Join Room</a></li>
             </ul>
+            <form action="/auth/login" method="POST">
+                <h3>Login</h3>
+                <label for="name">Username</label>
+                <input type="text" name="name" id="name">
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password">
+                <input type="submit" value="Login">
+            </form>
         </div>
     </body>
 </html>

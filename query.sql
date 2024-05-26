@@ -31,6 +31,11 @@ SELECT id, name, password
 FROM users
 WHERE name = ?;
 
+-- name: GetUserByID :one
+SELECT id, name, password
+FROM users
+WHERE id = ?;
+
 -- Player queries
 -- name: CreatePlayer :one
 INSERT INTO players (user_id)
@@ -41,3 +46,4 @@ RETURNING id, user_id, score, game_history;
 SELECT id, user_id, score, game_history
 FROM players
 WHERE user_id = ?;
+

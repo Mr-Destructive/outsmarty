@@ -25,8 +25,8 @@ func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) error {
 }
 
 const createPlayer = `-- name: CreatePlayer :one
-INSERT INTO players (user_id) 
-VALUES (?) 
+INSERT INTO players (user_id)
+VALUES (?)
 RETURNING id, user_id, score, game_history
 `
 
@@ -80,8 +80,8 @@ func (q *Queries) CreateRoomWithSlug(ctx context.Context, arg CreateRoomWithSlug
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (name, password) 
-VALUES (?, ?) 
+INSERT INTO users (name, password)
+VALUES (?, ?)
 RETURNING id, name, password
 `
 
@@ -133,8 +133,8 @@ func (q *Queries) GetLastInsertGame(ctx context.Context) (Game, error) {
 }
 
 const getPlayerByUserID = `-- name: GetPlayerByUserID :one
-SELECT id, user_id, score, game_history 
-FROM players 
+SELECT id, user_id, score, game_history
+FROM players
 WHERE user_id = ?
 `
 
@@ -185,9 +185,22 @@ func (q *Queries) GetRoomPlayers(ctx context.Context, roomID int64) ([]GetRoomPl
 	return items, nil
 }
 
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, name, password
+FROM users
+WHERE id = ?
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(&i.ID, &i.Name, &i.Password)
+	return i, err
+}
+
 const getUserByName = `-- name: GetUserByName :one
-SELECT id, name, password 
-FROM users 
+SELECT id, name, password
+FROM users
 WHERE name = ?
 `
 

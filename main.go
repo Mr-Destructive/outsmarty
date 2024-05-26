@@ -4,15 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/websocket"
+	outsmarty_api "outsmarty.sqlc.dev/app/api"
 	db "outsmarty.sqlc.dev/app/outsmarty"
 )
 
@@ -36,21 +39,26 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	http.HandleFunc("/rooms/create", createRoomHandler)
-	http.HandleFunc("/rooms/join", joinRoomHandler)
-	http.HandleFunc("/auth/register", registerHandler)
-	http.HandleFunc("/auth/login", loginHandler)
-	http.HandleFunc("/auth/logout", logoutHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth/register", registerHandler)
+	mux.HandleFunc("/auth/login", loginHandler)
+	mux.HandleFunc("/auth/logout", logoutHandler)
 
-	http.HandleFunc("/players", createPlayerHandler)
-	http.HandleFunc("/games", createGameHandler)
-	http.HandleFunc("/games/rounds", startRoundHandler)
-	http.HandleFunc("/games/answers", submitAnswerHandler)
-	http.HandleFunc("/games/status", getGameStatusHandler)
+	mux.HandleFunc("/rooms/create", createRoomHandler)
+	mux.HandleFunc("/rooms/join", joinRoomHandler)
+	mux.HandleFunc("/players", createPlayerHandler)
 
-	http.HandleFunc("/app", appHandler)
+	mux.HandleFunc("/games", createGameHandler)
+	mux.HandleFunc("/games/rounds", startRoundHandler)
+	mux.HandleFunc("/games/answers", submitAnswerHandler)
+	mux.HandleFunc("/games/status", getGameStatusHandler)
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	mux.HandleFunc("/app", appHandler)
+	chatServer := outsmarty_api.NewServer()
+	mux.Handle("/ws/room/", websocket.Handler(chatServer.HandleWS))
+	corsHandler := outsmarty_api.CORSMiddleware(mux)
+
+	log.Fatal(http.ListenAndServe(":8080", corsHandler))
 }
 
 func initializeDatabase(db *sql.DB) error {
@@ -170,6 +178,7 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		fmt.Println(validatedBody)
 		roomSlug := generateRoomSlug(validatedBody.Name)
 		roomObject := db.CreateRoomWithSlugParams{
 			Name:       validatedBody.Name,
@@ -182,7 +191,7 @@ func createRoomHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
+		json.NewEncoder(w).Encode(roomObject)
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -201,7 +210,7 @@ func validateRoomPayload(body io.ReadCloser) (db.CreateRoomParams, error) {
 
 func generateRoomSlug(name string) string {
 	// add a random string to the end of the slug
-	slug := name + strconv.FormatInt(time.Now().UnixNano(), 10)
+	slug := name + "_" + uuid.New().String()[0:8]
 	return slug
 }
 
@@ -260,21 +269,42 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user db.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+	var name, password string
+
+	contentType := r.Header.Get("Content-Type")
+
+	switch contentType {
+	case "application/json":
+		var user db.User
+		if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+			http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+			return
+		}
+		name = user.Name
+		password = user.Password
+	case "application/x-www-form-urlencoded":
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form request payload", http.StatusBadRequest)
+			return
+		}
+		name = r.Form.Get("name")
+		password = r.Form.Get("password")
+	default:
+		http.Error(w, "Unsupported content type", http.StatusUnsupportedMediaType)
 		return
 	}
-
+	fmt.Println(name, password)
 	ctx := context.Background()
-	dbUser, err := queries.GetUserByName(ctx, user.Name)
+	dbUser, err := queries.GetUserByName(ctx, name)
 	if err != nil {
 		http.Error(w, "Invalid name or password", http.StatusUnauthorized)
 		return
 	}
+	name = dbUser.Name
+	hashedPassword := dbUser.Password
 
-	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password)); err != nil {
-		http.Error(w, "Invalid name or password", http.StatusUnauthorized)
+	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password)); err != nil {
+		fmt.Println("Error comparing hash and password: ", err)
 		return
 	}
 	sessionID, err := getSession(r)
@@ -283,14 +313,28 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := strconv.Itoa(int(dbUser.ID))
+	path := "/"
 	if sessionID == nil {
 		cookie := &http.Cookie{
-			Path:   "/",
-			Name:   "outsmarty_uid",
-			Value:  userID,
-			MaxAge: int(24 * 60 * 60),
+			Domain:   "localhost",
+			Name:     "outsmarty_uid",
+			Value:    userID,
+			Path:     path,
+			MaxAge:   86400,
+			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
+		}
+		userName := &http.Cookie{
+			Domain:   "localhost",
+			Name:     "outsmarty_name",
+			Value:    name,
+			Path:     path,
+			MaxAge:   86400,
+			SameSite: http.SameSiteNoneMode,
+			Secure:   true,
 		}
 		http.SetCookie(w, cookie)
+        http.SetCookie(w, userName)
 	}
 
 	response := PublicUser{
