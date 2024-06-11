@@ -48,10 +48,15 @@ func main() {
 	mux.HandleFunc("/rooms/join", joinRoomHandler)
 	mux.HandleFunc("/players", createPlayerHandler)
 
-	mux.HandleFunc("/games", createGameHandler)
+	mux.HandleFunc("/games/create", createGameHandler)
+	mux.HandleFunc("/games/detail", outsmarty_api.GetGameHandler)
 	mux.HandleFunc("/games/rounds", startRoundHandler)
 	mux.HandleFunc("/games/answers", submitAnswerHandler)
 	mux.HandleFunc("/games/status", getGameStatusHandler)
+
+	mux.HandleFunc("/theme/list", outsmarty_api.GetThemesHandler)
+
+	mux.HandleFunc("/questions/generate", outsmarty_api.GenerateQuestionsHandler)
 
 	mux.HandleFunc("/app", appHandler)
 	chatServer := outsmarty_api.NewServer()
@@ -334,7 +339,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			Secure:   true,
 		}
 		http.SetCookie(w, cookie)
-        http.SetCookie(w, userName)
+		http.SetCookie(w, userName)
 	}
 
 	response := PublicUser{

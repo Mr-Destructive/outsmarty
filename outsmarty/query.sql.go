@@ -150,6 +150,40 @@ func (q *Queries) GetPlayerByUserID(ctx context.Context, userID sql.NullInt64) (
 	return i, err
 }
 
+const getQuestions = `-- name: GetQuestions :many
+SELECT id, theme_id, question_text, correct_answer
+FROM questions
+WHERE theme_id = ?
+`
+
+func (q *Queries) GetQuestions(ctx context.Context, themeID int64) ([]Question, error) {
+	rows, err := q.db.QueryContext(ctx, getQuestions, themeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Question
+	for rows.Next() {
+		var i Question
+		if err := rows.Scan(
+			&i.ID,
+			&i.ThemeID,
+			&i.QuestionText,
+			&i.CorrectAnswer,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRoomPlayers = `-- name: GetRoomPlayers :many
 SELECT id, player_id, room_id
 FROM room_players
@@ -185,6 +219,19 @@ func (q *Queries) GetRoomPlayers(ctx context.Context, roomID int64) ([]GetRoomPl
 	return items, nil
 }
 
+const getThemeByName = `-- name: GetThemeByName :one
+SELECT id
+FROM themes
+WHERE name = ?
+`
+
+func (q *Queries) GetThemeByName(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getThemeByName, name)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
 SELECT id, name, password
 FROM users
@@ -209,4 +256,32 @@ func (q *Queries) GetUserByName(ctx context.Context, name string) (User, error) 
 	var i User
 	err := row.Scan(&i.ID, &i.Name, &i.Password)
 	return i, err
+}
+
+const listThemes = `-- name: ListThemes :many
+SELECT id, name
+FROM themes
+`
+
+func (q *Queries) ListThemes(ctx context.Context) ([]Theme, error) {
+	rows, err := q.db.QueryContext(ctx, listThemes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Theme
+	for rows.Next() {
+		var i Theme
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

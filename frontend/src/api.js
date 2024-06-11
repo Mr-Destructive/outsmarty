@@ -53,3 +53,30 @@ export const joinRoom = async (roomId) => {
   });
   return response.json();
 };
+
+export const fetchThemes = async () => {
+  const response = await fetch(`${API_URL}/theme/list`)
+    console.log(response);
+  return response.json();
+}
+
+export const createGame = async (theme, rounds) => {
+  const response = await fetch(`${API_URL}/games/create`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+      body: JSON.stringify({ "theme_id": theme, "num_rounds": rounds }),
+  });
+  return response.json();
+}
+
+export const getGame = async (gameId) => {
+  const response = await fetch(`${API_URL}/games/detail?game_id=${gameId}`)
+  return response.json();
+}
+
+export const getQuestionsForGame = async (theme, rounds) => {
+  const response = await fetch(`${API_URL}/questions/generate?rounds=${rounds}&theme=${theme}`)
+  return response.json();
+}

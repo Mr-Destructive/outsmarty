@@ -36,8 +36,6 @@ func (s *Server) HandleWS(w *websocket.Conn) {
 	}
 	roomSlug := strings.TrimPrefix(path, prefix)
 
-	fmt.Println("Client Connected from", conn.RemoteAddr())
-
 	if s.conns[roomSlug] == nil {
 		s.conns[roomSlug] = make(map[*websocket.Conn]bool)
 	}
@@ -76,7 +74,6 @@ func (s *Server) readLoop(ws *websocket.Conn, roomSlug string) {
 			continue
 		}
 		msg := buf[:n]
-		fmt.Println("MSG received from room:", string(msg), roomSlug)
 		s.broadcast(msg, roomSlug)
 	}
 }

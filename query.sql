@@ -47,3 +47,17 @@ SELECT id, user_id, score, game_history
 FROM players
 WHERE user_id = ?;
 
+
+-- name: GetQuestions :many
+SELECT id, theme_id, question_text, correct_answer
+FROM questions
+WHERE theme_id = ?;
+
+-- name: GetThemeByName :one
+SELECT id
+FROM themes
+WHERE name = ?;
+
+-- name: ListThemes :many
+SELECT id, name
+FROM themes;
